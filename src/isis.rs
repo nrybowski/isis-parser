@@ -1,6 +1,11 @@
 use nom_derive::*;
+use nom::combinator::complete;
+use nom::multi::many0;
+pub use nom::IResult;
 
 use rusticata_macros::newtype_enum;
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, NomBE)]
 pub struct IsisPacketType(pub u8);
@@ -36,9 +41,19 @@ pub struct IsisPacketHeader {
     pub max_area_adr: u8
 }
 
+#[derive(Nom)]
 #[derive(Debug)]
+#[nom(Selector(u8))]
 pub enum IsisTlv {
+    #[nom(Selector(22))]
     TlvExtendedIsReachability(IsisTlvExtendedIsReachability),
+    #[nom(Selector(_), Ignore)]
+    Unsupported
+}
+
+#[derive(Debug)]
+pub enum IsisSubTlv {
+    Unsupported    
 }
 
 #[derive(Debug, NomBE)]
@@ -47,9 +62,19 @@ pub struct IsisTlvHeader {
     pub len: u8,
 }
 
+// TODO: Use generic type
+fn parse_is_neighbors(len: u8) -> impl Fn(&[u8]) -> IResult<&[u8], Vec<IsNeighbor>> {
+    move |input: &[u8]| {
+        let (data, rem) = input.split_at(len.into());
+        let (_, v) = many0(complete(IsNeighbor::parse))(data)?;
+        Ok((rem, v))
+    }
+}
+
 #[derive(Debug, NomBE)]
 pub struct IsisTlvExtendedIsReachability {
     pub header: IsisTlvHeader,
+    #[nom(Parse(parse_is_neighbors(header.len)))]
     pub neighbors: Vec<IsNeighbor>,
 }
 
@@ -58,9 +83,12 @@ pub struct IsNeighbor {
     pub is_neighbor_id: [u8; 7],
     pub metric: [u8; 3],
     pub sub_tlvs_len: u8,
+    // TODO: Handle SubTLVs
+    #[nom(SkipBefore(sub_tlvs_len), Ignore)]
+    pub sub_tlvs: Vec<IsisSubTlv>,
 }
 
-#[derive(NomBE)]
+#[derive(PartialOrd, Ord, Eq, Hash, PartialEq, Clone, Copy, NomBE, Serialize)]
 pub struct LspId(u64);
 impl std::fmt::Debug for LspId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -101,7 +129,8 @@ pub struct IsisL2LinkStatePacket {
     pub seq_no: SeqNo,
     pub checksum: Chksm,
     pub type_block: u8,
-    pub tlvs: Option<Vec<IsisTlv>>,
+    // #[nom(Cond(pdu_length - 19 > 0))]
+    pub tlvs: Vec<IsisTlv>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, NomBE)]
@@ -110,5 +139,13 @@ pub struct IsisTlvType(pub u8);
 newtype_enum! {
     impl display IsisTlvType {
         ExtendedIsReachability = 22,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, NomBE)]
+pub struct IsisSubTlvType(pub u8);
+
+newtype_enum! {
+    impl display IsisSubTlvType {
     }
 }

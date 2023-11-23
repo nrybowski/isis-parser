@@ -1,6 +1,7 @@
-use nom::combinator::{complete, map, peek};
-use nom::error::{make_error, ErrorKind};
-use nom::number::streaming::{be_u64, be_u8};
+use nom::combinator::{map, peek};
+use nom::error::{make_error, ErrorKind, Error};
+use nom::number::streaming::{be_u64, be_u16};
+use nom::bytes::streaming::take;
 use nom_derive::Parse;
 pub use nom::IResult;
 
@@ -22,21 +23,56 @@ pub fn parse_isis_packet(input: &[u8]) -> IResult<&[u8], IsisPacket> {
     }
 }
 
+// TODO: Use only nom_derive Selector if possible
 impl <'a> Parse<&'a [u8]> for IsisTlv {
       fn parse(input: &[u8]) -> IResult<&[u8], IsisTlv> {
-        let (_, tlv_type) = peek(be_u8)(input)?;
+        let (_, word) = peek(be_u16)(input)?;
+        let tlv_type = (word >> 8) as u8;
+        let len = word as u8;
+        // println!("{:x?}", input);
         match IsisTlvType(tlv_type) {
-            IsisTlvType::ExtendedIsReachability => map(
-                IsisTlvExtendedIsReachability::parse,
-                IsisTlv::TlvExtendedIsReachability
-            )(input),
+            IsisTlvType::ExtendedIsReachability => {
+                let ret = map(
+                        IsisTlvExtendedIsReachability::parse,
+                        IsisTlv::TlvExtendedIsReachability
+                    )(input);
+                // println!("{:#x?}", ret);
+                ret
+            },
             _ => {
-                println!("TLV unsuported");
-                Err(nom::Err::Error(make_error(input, ErrorKind::Tag)))
+                if len == 0 {
+                    Err(nom::Err::Error(make_error(input, ErrorKind::Tag)))
+                } else {
+                    // println!("TLV unsuported: type <{}> len <{}>", tlv_type, len);
+                    let ret = take::<u8, &[u8], Error<&[u8]>>((len +2) as u8)(input).unwrap();
+                    // println!("TLV unsuported: type <{}> len <{}> buf <{:#x?}>", tlv_type, len, ret.1);
+                    Ok((ret.0, IsisTlv::Unsupported))
+                }
             },
         }
     }
 }
+
+// impl <'a> Parse<&'a [u8]> for IsisSubTlv {
+//       fn parse(input: &[u8]) -> IResult<&[u8], IsisSubTlv> {
+//         let (_, word) = peek(be_u16)(input)?;
+//         let subtlv_type = (word >> 8) as u8;
+//         let len = word as u8;
+//         match IsisSubTlvType(subtlv_type) {
+//             _ => {
+//                 //if len == 0 {
+//                 //    Err(nom::Err::Error(make_error(input, ErrorKind::Tag)))
+//                 //} else {
+//                     // let ret = take::<u8, &[u8], Error<&[u8]>>((len +2) as u8)(input).unwrap();
+//                     // println!("TLV unsuported: type <{}> len <{}> buf <{:#x?}>", subtlv_type, len, ret.1);
+//                     println!("Sub TLV unsupported: type <{}> len <{}>", subtlv_type, len);
+//                     // Ok((ret.0, IsisSubTlv::Unsupported))
+//                     Ok((input, IsisSubTlv::Unsupported))
+//                 //}
+//             },
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod test {
@@ -54,8 +90,8 @@ mod test {
             Ok((rem, _parsed)) => {
                 assert!(rem.len() == 0);
 
-                // println!("{:#?}", _parsed);
-                // assert!(false);
+                println!("{:#?}", _parsed);
+                assert!(false);
                 // TODO: Check parsed fields
             },
             _ => assert!(false),
