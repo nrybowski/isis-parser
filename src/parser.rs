@@ -1,7 +1,7 @@
 use nom::combinator::{map, peek};
-use nom::error::{make_error, ErrorKind, Error};
-use nom::number::streaming::{be_u64, be_u16};
-use nom::bytes::streaming::take;
+use nom::error::{make_error, ErrorKind};
+use nom::number::streaming::{be_u64};
+// use nom::bytes::streaming::take;
 use nom_derive::Parse;
 pub use nom::IResult;
 
@@ -38,9 +38,6 @@ mod test {
         match res {
             Ok((rem, _parsed)) => {
                 assert!(rem.len() == 0);
-
-                println!("{:#?}", _parsed);
-                assert!(false);
                 // TODO: Check parsed fields
             },
             _ => assert!(false),
