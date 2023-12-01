@@ -38,24 +38,30 @@ pub struct IsisPacketHeader {
 }
 
 pub fn skipper(input: &[u8]) -> IResult<&[u8], IsisTlv> {
-    let (_, hdr) = peek(be_u16)(input)?;
-    let len = hdr as u8;
-    let (rem, _skipped) = take::<u8, &[u8], Error<&[u8]>>((len+2) as u8)(input)?;    
+    // let (_, hdr) = peek(be_u16)(input)?;
+    let (input, hdr) = take(2 as usize)(input)?;
+    let len = hdr[1];
+    // let (rem, _skipped) = take::<u8, &[u8], Error<&[u8]>>((len+2) as u8)(input)?;    
+    let (rem, _skipped) = take::<u8, &[u8], Error<&[u8]>>((len) as u8)(input)?;    
     Ok((rem, IsisTlv::Unsupported))
 }
 
-// TODO: Make generic for all variants of LSP Id
 #[derive(PartialOrd, Ord, Eq, Hash, PartialEq, Clone, Copy, NomBE, Serialize)]
-pub struct LspId(u64);
+pub struct LspId{
+    pub system_id: [u16;3],
+    pub pseudo_id: u8,
+    pub frag_id: u8,
+}
+
 impl std::fmt::Debug for LspId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "{:04x}.{:04x}.{:04x}.{:02x}-{:02x}", 
-            (self.0 >> 48) as u16,
-            (self.0 >> 32) as u16,
-            (self.0 >> 16) as u16,
-            (self.0 >> 8) as u8,
-            self.0 as u8,
+            self.system_id[0],
+            self.system_id[1],
+            self.system_id[2],
+            self.pseudo_id,
+            self.frag_id,
         ))
     }
 }
