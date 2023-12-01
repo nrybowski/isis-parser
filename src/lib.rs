@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 pub extern crate nom;
 
 mod parser;
