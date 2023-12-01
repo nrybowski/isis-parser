@@ -9,7 +9,10 @@ use rusticata_macros::*;
 
 use nom_derive::*;
 
-use crate::tlv::IsisGenericTlvHeader;
+use crate::{
+    tlv::IsisGenericTlvHeader,
+    isis::skipper,
+};
 
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, NomBE)]
@@ -32,7 +35,7 @@ pub enum IsisSubTlv {
     #[nom(Selector(IsisSubTlvType::Ipv4NeighborAddress))]
     Ipv4NeighborAddress(IsisSubTlvIpv4NeighborAddress),
     // TODO: use skipper
-    #[nom(Selector(_), Ignore)]
+    #[nom(Selector(_), Parse(skipper))]
     Unsupported    
 }
 
